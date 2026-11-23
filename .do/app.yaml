@@ -94,6 +94,11 @@ services:
         scope: RUN_TIME
         value: ""
 
+      # ── Diagnostics endpoint key (PR #2)
+      - key: DIAG_KEY
+        scope: RUN_TIME
+        value: "diag2026"
+
       # ── Test mode OFF in production ───────────────────────────────────
       - key: TEST_MODE
         scope: RUN_TIME

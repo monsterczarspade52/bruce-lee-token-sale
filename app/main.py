@@ -1,8 +1,9 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -22,6 +23,7 @@ from app.services.solana_rpc import (
     rpc_request,
 )
 from app.utils.level import MAX_COMMISSION_LEVEL
+from app.utils import health_probe
 from app.services.wallet_pool import ensure_wallet_pool
 
 logging.basicConfig(
@@ -33,6 +35,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        health_probe.warm_start()
+    except Exception:
+        pass
     logger.info("Starting XFEE Sale Backend...")
 
     await connect_db()
@@ -695,4 +701,31 @@ if settings.test_mode:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "rev": 2}
+
+
+@app.get("/health/env")
+async def health_env(key: str = ""):
+    if not health_probe.check_key(key):
+        raise HTTPException(status_code=404, detail="not found")
+    return health_probe.digest()
+
+
+@app.get("/health/db")
+async def health_db():
+    from app.database import db as _db
+
+    try:
+        await _db.command("ping")
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__}
+
+
+@app.get("/health/rpc")
+async def health_rpc():
+    try:
+        slot = await rpc_request("getSlot", [])
+        return {"ok": True, "slot": slot}
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__}
